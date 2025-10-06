@@ -110,39 +110,37 @@ ${chunk.changes
 `;
 }
 
-async function getAIResponse(prompt: string): Promise<Array<{
-  lineNumber: string;
-  reviewComment: string;
-}> | null> {
-  const queryConfig = {
-    model: OPENAI_API_MODEL,
-    temperature: 0.2,
-    max_tokens: 700,
-    top_p: 1,
-    frequency_penalty: 0,
-    presence_penalty: 0,
-  };
+async function getAIResponse(prompt: string): Promise<
+  Array<{ lineNumber: string; reviewComment: string }>
+> {
+  const model = OPENAI_API_MODEL || "gpt-5";
 
   try {
-    const response = await openai.chat.completions.create({
-      ...queryConfig,
-      // return JSON if the model supports it:
-      ...(OPENAI_API_MODEL === "gpt-4-1106-preview"
-        ? { response_format: { type: "json_object" } }
-        : {}),
-      messages: [
-        {
-          role: "system",
-          content: prompt,
-        },
-      ],
+    const response = await openai.responses.create({
+      model,
+      input: prompt,
+      temperature: 0.2,
+      max_output_tokens: 700,
     });
 
-    const res = response.choices[0].message?.content?.trim() || "{}";
-    return JSON.parse(res).reviews;
+    const anyResponse: any = response as any;
+    const raw =
+      anyResponse?.output_text ||
+      anyResponse?.output?.[0]?.content?.[0]?.text?.value ||
+      anyResponse?.output?.[0]?.content?.[0]?.text ||
+      "{}";
+
+    const parsed = JSON.parse(String(raw));
+    if (parsed && Array.isArray(parsed.reviews)) {
+      return parsed.reviews as Array<{
+        lineNumber: string;
+        reviewComment: string;
+      }>;
+    }
+    return [];
   } catch (error) {
-    console.error("Error:", error);
-    return null;
+    console.error("Error while requesting OpenAI Responses API:", error);
+    return [];
   }
 }
 
